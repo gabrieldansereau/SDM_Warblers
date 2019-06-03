@@ -1,0 +1,15 @@
+# Information on GBIF data
+https://www.gbif.org/occurrence/download?has_geospatial_issue=false&taxon_key=5263&geometry=POLYGON((-168.04687%2014.40064,-45%2014.40064,-45%2080.26232,-168.04687%2080.26232,-168.04687%2014.40064))
+
+Citation
+    GBIF.org (03 June 2019) GBIF Occurrence Download https://doi.org/10.15468/dl.xdt0ai
+License
+    Unspecified
+Geometry
+    POLYGON((-168.04687 14.40064,-45 14.40064,-45 80.26232,-168.04687 80.26232,-168.04687 14.40064))
+Scientific name
+    Parulidae
+Has geospatial issue
+    false
+
+This download hasn't been cited and is eligible for deletion after December 3, 2019.
