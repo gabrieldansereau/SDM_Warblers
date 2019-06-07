@@ -59,3 +59,44 @@ occ = zeros(temperature)
 
 temperature.grid[1,1]
 temperature[-180.0, -90.0]
+
+## Observations in array with correction dimensions
+# Verification
+Int64(round((df.decimalLatitude[1]+90)*6))
+round((-90+90)*6)
+round((-89+90)*6)
+round((89.1+90)*6)
+round((90+90)*6)
+round((df.decimalLongitude[1]+180)*6)
+
+# Custom functions
+function round_lat(lat)
+    Int64(round((lat+90)*6))
+end
+function round_lon(lon)
+    Int64(round((lon+180)*6))
+end
+
+# Create occurence array
+occ = zeros(size(temperature.grid))
+lats = zeros(Int64, length(df.species))
+lons = zeros(Int64, length(df.species))
+for i in 1:length(df.species)
+    lats[i] = round_lat(df.decimalLatitude[i])
+    lons[i] = round_lat(df.decimalLongitude[i])
+    occ[lats[i], lons[i]] += 1
+end
+occ
+occ_obs = occ[(minimum(lats):maximum(lats)),(minimum(lons):maximum(lons))]
+
+using Plots
+heatmap(occ_obs)
+heatmap(minimum(lats):0.166667:maximum(lats), minimum(lons):0.166667:maximum(lons), occ)
+heatmap(minimum(lats):0.166667:maximum(lats), minimum(lons):0.166667:maximum(lons), temperature.grid)
+heatmap(minimum(df.decimalLongitude):0.166667:maximum(df.decimalLongitude),
+        minimum(df.decimalLatitude):0.166667:maximum(df.decimalLatitude),
+        occ_obs)
+heatmap(-180:0.166667:180, -90:0.166667:90, occ)
+
+SimpleSDMLayer.(occ, -180.0, 180.0, -90.0, 90.0)
+test.grid = occ_obs
