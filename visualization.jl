@@ -73,6 +73,9 @@ end
 function coord_ceil(coord)
     ceil(coord*grid_ratio)/grid_ratio
 end
+function coord_round(coord)
+    round(coord*grid_ratio)/grid_ratio
+end
 function coord_range(coords)
     coord_floor(minimum(coords)):1/grid_ratio:coord_ceil(maximum(coords))
 end
@@ -99,6 +102,35 @@ species_per_site_obs = species_per_site[(minimum(lats):maximum(lats)),(minimum(l
 species_counts = length.(species_per_site_obs) .- 1
 # Map species per site
 heatmap(species_counts)
+heatmap(occ_obs./species_counts)
+
+## Ecological data matrix
+# Replace spaces by underscores
+df.species .= replace.(df.species, " " .=> "_")
+# List species in dataset
+species_list = unique(df.species)
+# Create coordinates & occurences parts of ecological data matrix
+sites_x_species_coord = DataFrame()
+sites_x_species_occ = zeros(Int64, (length(occ_obs), length(species_list)))
+# Add latitude & longitude to dataset
+sites_x_species_coord.latitude = repeat(coord_range(df.decimalLatitude), outer=size(occ_obs)[2])
+sites_x_species_coord.longitude = repeat(coord_range(df.decimalLongitude), inner=size(occ_obs)[1])
+#
+for i in 1:length(df.species)
+    possib_x = findall(x -> x == coord_round(df.decimalLatitude[i]), sites_x_species_coord.latitude)
+    possib_y = findall(y -> y == coord_round(df.decimalLongitude[i]), sites_x_species_coord.longitude)
+    row = possib_y[findfirst(in(possib_x), possib_y)]
+    col = findfirst(x -> x == df.species[i], species_list)
+    sites_x_species_occ[row, col] += 1
+end
+sites_x_species_occ = DataFrame(sites_x_species_occ)
+# Rename columns by species names
+names!(sites_x_species_occ, Symbol.(species_list))
+# Create full ecological data matrix
+sites_x_species = hcat(sites_x_species_coord, sites_x_species_occ)
+# Plot single species occurences
+heatmap(reshape(Array(sites_x_species.Setophaga_caerulescens), 11, 18))
+
 
 #######################################################
 #### Exploration
