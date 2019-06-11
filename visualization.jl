@@ -85,6 +85,21 @@ temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitude)),
             (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
             heatmap(x.grid)
 
+## Number of species
+# List species per site (with "NA", could not find another way)
+species_per_site = fill(String["NA"], size(temperature.grid)[1], size(temperature.grid)[2])
+for i in 1:length(df.species)
+    if (df.species[i] in species_per_site[lats[i], longs[i]]) == false
+        species_per_site[lats[i], longs[i]] = vec(vcat(species_per_site[lats[i], longs[i]], df.species[i]))
+    end
+end
+# Crop to observed sites
+species_per_site_obs = species_per_site[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
+# Count species per site
+species_counts = length.(species_per_site_obs) .- 1
+# Map species per site
+heatmap(species_counts)
+
 #######################################################
 #### Exploration
 
