@@ -80,13 +80,13 @@ function coord_range(coords)
     coord_floor(minimum(coords)):1/grid_ratio:coord_ceil(maximum(coords))
 end
 # Map occurences
-heatmap(occ_obs)
+map_occ = heatmap(occ_obs)
 # Map with coordinates
-heatmap(coord_range(df.decimalLongitude), coord_range(df.decimalLatitude), occ_obs)
+map_occ_coord = heatmap(coord_range(df.decimalLongitude), coord_range(df.decimalLatitude), occ_obs)
 # Map temperature for same coordinates
-temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitude)),
-            (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
-            heatmap(x.grid)
+map_temp = temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitude)),
+                        (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
+                        heatmap(x.grid)
 
 ## Number of species
 # List species per site (with "NA", could not find another way)
@@ -101,8 +101,8 @@ species_per_site_obs = species_per_site[(minimum(lats):maximum(lats)),(minimum(l
 # Count species per site
 species_counts = length.(species_per_site_obs) .- 1
 # Map species per site
-heatmap(species_counts)
-heatmap(occ_obs./species_counts)
+map_species_count = heatmap(species_counts)
+map_occ_per_species = heatmap(occ_obs./species_counts)
 
 ## Ecological data matrix
 # Replace spaces by underscores
@@ -129,7 +129,15 @@ names!(sites_x_species_occ, Symbol.(species_list))
 # Create full ecological data matrix
 sites_x_species = hcat(sites_x_species_coord, sites_x_species_occ)
 # Plot single species occurences
-heatmap(reshape(Array(sites_x_species.Setophaga_caerulescens), 11, 18))
+map_single_sp1 = heatmap(reshape(Array(sites_x_species.Setophaga_caerulescens), 11, 18))
+
+## Export figures
+savefig(map_occ, "fig/map-occurences")
+savefig(map_occ_coord, "fig/map-occurences-with-coordinates")
+savefig(map_temp, "fig/map-temperature")
+savefig(map_species_count, "fig/map-species-count")
+savefig(map_occ_per_species, "fig/map-occurences-per-species")
+savefig(map_single_sp1, "fig/map-single-species-example")
 
 
 #######################################################
