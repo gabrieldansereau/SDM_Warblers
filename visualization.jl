@@ -115,7 +115,7 @@ sites_x_species_occ = zeros(Int64, (length(occ_obs), length(species_list)))
 # Add latitude & longitude to dataset
 sites_x_species_coord.latitude = repeat(coord_range(df.decimalLatitude), outer=size(occ_obs)[2])
 sites_x_species_coord.longitude = repeat(coord_range(df.decimalLongitude), inner=size(occ_obs)[1])
-#
+# Fill in sites x species occurence dataframe
 for i in 1:length(df.species)
     possib_x = findall(x -> x == coord_round(df.decimalLatitude[i]), sites_x_species_coord.latitude)
     possib_y = findall(y -> y == coord_round(df.decimalLongitude[i]), sites_x_species_coord.longitude)
