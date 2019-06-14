@@ -159,6 +159,7 @@ for i in 1:length(species_list)
 end
 # useless @eval plot($(Symbol.(string.("map_single_sp_", species_list))))
 
+mtl_layer = geotiff.("./assets/mtl.tif")
 
 ## Export figures
 savefig(map_occ, "fig/map-occurences")
