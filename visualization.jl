@@ -152,10 +152,10 @@ end
 species_maps = Dict(Symbol(species_list[i]) =>
                     heatmap(reshape(Array(sites_x_species[Symbol(species_list[i])]), 11, 18))
                     for i=1:length(species_list))
-species_maps[species_list[1]]
+species_maps[Symbol(species_list[1])]
 # Produce all graphs
 for i in 1:length(species_list)
-    display(species_maps[species_list[i]])
+    display(species_maps[Symbol(species_list[i])])
 end
 # useless @eval plot($(Symbol.(string.("map_single_sp_", species_list))))
 
