@@ -8,6 +8,7 @@ using Plots
 ## Get data
 # Warbler data (CSV)
 warblers = CSV.read("../data/warblers_mtl.csv", header=true, delim="\t")
+warblers = CSV.read("../data/warblers_qc_2018.csv", header=true, delim="\t")
 # Bioclim layers
 temperature, precipitation = worldclim([1,12], resolution="2.5")
 
@@ -88,6 +89,12 @@ map_temp = temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitud
                         (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
                         heatmap(x.grid)
 
+## Sites with >1 observation (binary)
+occ_obs_bin = occ_obs
+occ_obs_bin[occ_obs_bin .> 0] .= 1.0
+occ_obs_bin
+map_occ_bin = heatmap(occ_obs_bin)
+
 ## Number of species
 # List species per site (with "NA", could not find another way)
 species_per_site = fill(String["NA"], size(temperature.grid)[1], size(temperature.grid)[2])
@@ -165,6 +172,7 @@ mtl_layer = geotiff.("./assets/mtl.tif")
 savefig(map_occ, "fig/map-occurences")
 savefig(map_occ_coord, "fig/map-occurences-with-coordinates")
 savefig(map_temp, "fig/map-temperature")
+savefig(map_occ_bin, "fig/map-occurences-binary-qc")
 savefig(map_species_count, "fig/map-species-count")
 savefig(map_occ_per_species, "fig/map-occurences-per-species")
 savefig(map_single_sp1, "fig/map-single-species-example")
