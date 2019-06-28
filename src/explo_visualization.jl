@@ -2,8 +2,9 @@ using CSV
 using DataFrames
 using SimpleSDMLayers
 using Plots
-# using JuliaDB
-# using Statistics
+
+# Source function script for coordinates
+include("functions_coordinates.jl")
 
 ## Get data
 # Warbler data (CSV)
@@ -47,43 +48,23 @@ size(temperature.grid) # [1] is lat, [2] is long
 # Ratio array cells per lat/long degree
 grid_ratio = size(temperature.grid)[1]/(2*90)
 grid_ratio == size(temperature.grid)[2]/(2*180) # must be true
-# Custom functions for conversion from coordinate to grid position
-function conv_lat(lat)
-    Int64(round((lat+90)*grid_ratio))
-end
-function conv_long(long)
-    Int64(round((long+180)*grid_ratio))
-end
 # Create occurence array
 occ = zeros(size(temperature.grid))
 lats = zeros(Int64, length(df.species))
 longs = zeros(Int64, length(df.species))
 for i in 1:length(df.species)
-    lats[i] = conv_lat(df.decimalLatitude[i])
-    longs[i] = conv_lat(df.decimalLongitude[i])
+    lats[i] = conv_lat(df.decimalLatitude[i], grid_ratio)
+    longs[i] = conv_long(df.decimalLongitude[i], grid_ratio)
     occ[lats[i], longs[i]] += 1
 end
 # Crop to selected region
 occ_obs = occ[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
 
 ## Map occurences
-# Custom functions to round coordinates
-function coord_floor(coord)
-    floor(coord*grid_ratio)/grid_ratio
-end
-function coord_ceil(coord)
-    ceil(coord*grid_ratio)/grid_ratio
-end
-function coord_round(coord)
-    round(coord*grid_ratio)/grid_ratio
-end
-function coord_range(coords)
-    coord_floor(minimum(coords)):1/grid_ratio:coord_ceil(maximum(coords))
-end
 # Map occurences
 map_occ = heatmap(occ_obs)
 # Map with coordinates
-map_occ_coord = heatmap(coord_range(df.decimalLongitude), coord_range(df.decimalLatitude), occ_obs)
+map_occ_coord = heatmap(coord_range(df.decimalLongitude, grid_ratio), coord_range(df.decimalLatitude, grid_ratio), occ_obs)
 # Map temperature for same coordinates
 map_temp = temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitude)),
                         (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
@@ -120,12 +101,12 @@ species_list = unique(df.species)
 sites_x_species_coord = DataFrame()
 sites_x_species_occ = zeros(Int64, (length(occ_obs), length(species_list)))
 # Add latitude & longitude to dataset
-sites_x_species_coord.latitude = repeat(coord_range(df.decimalLatitude), outer=size(occ_obs)[2])
-sites_x_species_coord.longitude = repeat(coord_range(df.decimalLongitude), inner=size(occ_obs)[1])
+sites_x_species_coord.latitude = repeat(coord_range(df.decimalLatitude, grid_ratio), outer=size(occ_obs)[2])
+sites_x_species_coord.longitude = repeat(coord_range(df.decimalLongitude, grid_ratio), inner=size(occ_obs)[1])
 # Fill in sites x species occurence dataframe
 for i in 1:length(df.species)
-    possib_x = findall(x -> x == coord_round(df.decimalLatitude[i]), sites_x_species_coord.latitude)
-    possib_y = findall(y -> y == coord_round(df.decimalLongitude[i]), sites_x_species_coord.longitude)
+    possib_x = findall(x -> x == coord_round(df.decimalLatitude[i], grid_ratio), sites_x_species_coord.latitude)
+    possib_y = findall(y -> y == coord_round(df.decimalLongitude[i], grid_ratio), sites_x_species_coord.longitude)
     row = possib_y[findfirst(in(possib_x), possib_y)]
     col = findfirst(x -> x == df.species[i], species_list)
     sites_x_species_occ[row, col] += 1
@@ -199,9 +180,9 @@ temperature[-180.0, -90.0]
 # first element has coordinates -180.0, -90.0
 
 # Test conversion from coordinate to grid position
-conv_lat(df.decimalLatitude[1])
-conv_lat(-90)
-conv_lat(-89)
-conv_lat(89.1)
-conv_lat(90)
-conv_long(df.decimalLongitude[1])
+conv_lat(df.decimalLatitude[1], grid_ratio)
+conv_lat(-90, grid_ratio)
+conv_lat(-89, grid_ratio)
+conv_lat(89.1, grid_ratio)
+conv_lat(90, grid_ratio)
+conv_long(df.decimalLongitude[1], grid_ratio)
