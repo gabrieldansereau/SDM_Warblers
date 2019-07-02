@@ -64,7 +64,9 @@ occ_obs = occ[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
 # Map occurences
 map_occ = heatmap(occ_obs)
 # Map with coordinates
-map_occ_coord = heatmap(coord_range(df.decimalLongitude, grid_ratio), coord_range(df.decimalLatitude, grid_ratio), occ_obs)
+map_occ_coord = heatmap(coord_range(df.decimalLongitude, grid_ratio),
+                        coord_range(df.decimalLatitude, grid_ratio),
+                        occ_obs)
 # Map temperature for same coordinates
 map_temp = temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitude)),
                         (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
