@@ -29,14 +29,17 @@ df_full = dropmissing(df, :year)
 df_full[df_full.year .< 1900, :]
 # Record from 1700 ???
 show(warblers[warblers.year .=== 1700, :], allcols=true)
+# Rename coordinate columns names
+rename!(df, :decimalLatitude => :latitude)
+rename!(df, :decimalLongitude => :longitude)
 
 ## Match observations & bioclim data
 # Test syntax
-temperature[df.decimalLongitude[1], df.decimalLatitude[1]]
+temperature[df.longitude[1], df.latitude[1]]
 # Get temperature matching observations
-temp_warblers = zeros(length(df.decimalLatitude))
-for i in 1:length(df.decimalLatitude)
-    temp_warblers[i] = temperature[df.decimalLongitude[i], df.decimalLatitude[i]]
+temp_warblers = zeros(length(df.latitude))
+for i in 1:length(df.latitude)
+    temp_warblers[i] = temperature[df.longitude[i], df.latitude[i]]
 end
 # Bind temperatures to observation dataframe
 df.temperature = temp_warblers
@@ -53,24 +56,35 @@ occ = zeros(size(temperature.grid))
 lats = zeros(Int64, length(df.species))
 longs = zeros(Int64, length(df.species))
 for i in 1:length(df.species)
-    lats[i] = conv_lat(df.decimalLatitude[i], grid_ratio)
-    longs[i] = conv_long(df.decimalLongitude[i], grid_ratio)
+    lats[i] = conv_lat(df.latitude[i], grid_ratio)
+    longs[i] = conv_long(df.longitude[i], grid_ratio)
     occ[lats[i], longs[i]] += 1
 end
 # Crop to selected region
 occ_obs = occ[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
+# Convert to SDMLayer
+test = SimpleSDMPredictor(occ_obs,
+                          minimum(df.longitude),
+                          maximum(df.longitude),
+                          minimum(df.latitude),
+                          maximum(df.latitude))
+heatmap(test.grid)
 
 ## Map occurences
 # Map occurences
 map_occ = heatmap(occ_obs)
 # Map with coordinates
-map_occ_coord = heatmap(coord_range(df.decimalLongitude, grid_ratio),
-                        coord_range(df.decimalLatitude, grid_ratio),
+map_occ_coord = heatmap(coord_range(df.longitude, grid_ratio),
+                        coord_range(df.latitude, grid_ratio),
                         occ_obs)
+map_occ_coord = heatmap(longitudes(test), latitudes(test), test.grid)
 # Map temperature for same coordinates
-map_temp = temperature[(minimum(df.decimalLongitude), maximum(df.decimalLongitude)),
-                        (minimum(df.decimalLatitude), maximum(df.decimalLatitude))] |> x ->
-                        heatmap(x.grid)
+temperature[(minimum(df.longitude), maximum(df.longitude)),
+                        (minimum(df.latitude), maximum(df.latitude))] |> x ->
+                        heatmap(longitudes(x), latitudes(x), x.grid)
+temperature[(minimum(longitudes(test)), maximum(longitudes(test))),
+                        (minimum(latitudes(test)), maximum(latitudes(test)))] |> x ->
+                        heatmap(longitudes(x), latitudes(x), x.grid)
 
 ## Sites with >1 observation (binary)
 occ_obs_bin = occ_obs
@@ -103,12 +117,12 @@ species_list = unique(df.species)
 sites_x_species_coord = DataFrame()
 sites_x_species_occ = zeros(Int64, (length(occ_obs), length(species_list)))
 # Add latitude & longitude to dataset
-sites_x_species_coord.latitude = repeat(coord_range(df.decimalLatitude, grid_ratio), outer=size(occ_obs)[2])
-sites_x_species_coord.longitude = repeat(coord_range(df.decimalLongitude, grid_ratio), inner=size(occ_obs)[1])
+sites_x_species_coord.latitude = repeat(coord_range(df.latitude, grid_ratio), outer=size(occ_obs)[2])
+sites_x_species_coord.longitude = repeat(coord_range(df.longitude, grid_ratio), inner=size(occ_obs)[1])
 # Fill in sites x species occurence dataframe
 for i in 1:length(df.species)
-    possib_x = findall(x -> x == coord_round(df.decimalLatitude[i], grid_ratio), sites_x_species_coord.latitude)
-    possib_y = findall(y -> y == coord_round(df.decimalLongitude[i], grid_ratio), sites_x_species_coord.longitude)
+    possib_x = findall(x -> x == coord_round(df.latitude[i], grid_ratio), sites_x_species_coord.latitude)
+    possib_y = findall(y -> y == coord_round(df.longitude[i], grid_ratio), sites_x_species_coord.longitude)
     row = possib_y[findfirst(in(possib_x), possib_y)]
     col = findfirst(x -> x == df.species[i], species_list)
     sites_x_species_occ[row, col] += 1
@@ -170,8 +184,8 @@ savefig(map_single_sp_9x, "fig/map-single-species-9x.png")
 res = zeros(10,10)
 for i in 1:10, j in 1:10
     res[i,j] = i |> x ->
-        temperature[round(df.decimalLongitude[j], digits=x),
-                    round(df.decimalLatitude[j], digits=x)]
+        temperature[round(df.longitude[j], digits=x),
+                    round(df.latitude[j], digits=x)]
 end
 res # 3 digit seem necessary
 
@@ -182,9 +196,9 @@ temperature[-180.0, -90.0]
 # first element has coordinates -180.0, -90.0
 
 # Test conversion from coordinate to grid position
-conv_lat(df.decimalLatitude[1], grid_ratio)
+conv_lat(df.latitude[1], grid_ratio)
 conv_lat(-90, grid_ratio)
 conv_lat(-89, grid_ratio)
 conv_lat(89.1, grid_ratio)
 conv_lat(90, grid_ratio)
-conv_long(df.decimalLongitude[1], grid_ratio)
+conv_long(df.longitude[1], grid_ratio)
