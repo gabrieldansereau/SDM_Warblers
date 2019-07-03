@@ -3,80 +3,94 @@ using DataFrames
 using SimpleSDMLayers
 using Plots
 
-# Source function script for coordinates
-include("functions_coordinates.jl")
-
 ## Get data
-# Warbler data (CSV)
+# Warbler data for Montreal area
 warblers = CSV.read("../data/warblers_mtl.csv", header=true, delim="\t")
-warblers = CSV.read("../data/warblers_qc_2018.csv", header=true, delim="\t")
+# Warbler data for Quebec in 2018
+# warblers = CSV.read("../data/warblers_qc_2018.csv", header=true, delim="\t")
 # Bioclim layers
-temperature, precipitation = worldclim([1,12], resolution="2.5")
+resolution = 2.5 # useful to keep as variable
+temperature, precipitation = worldclim([1,12], resolution="$(resolution)")
 
-## Visualize data
-# Dataframe names
-names(warblers)
-# Subset with specific columns
-df = warblers[:, [:species, :year, :decimalLatitude, :decimalLongitude]]
-# First entries (~head)
-first(df,6)
-# Show all columns
-show(first(df,6), allcols=true)
-# Describe columns (~summary)
-show(describe(df), allcols=true)
-# Select on conditions (year)
-df_full = dropmissing(df, :year)
-df_full[df_full.year .< 1900, :]
-# Record from 1700 ???
-show(warblers[warblers.year .=== 1700, :], allcols=true)
-# Rename coordinate columns names
-rename!(df, :decimalLatitude => :latitude)
-rename!(df, :decimalLongitude => :longitude)
+## Prepare data
+function prepare_csvdata(csvdata::DataFrame)
+    # Subset with specific columns
+    df = csvdata[:, [:species, :year, :decimalLatitude, :decimalLongitude]]
+    # Rename coordinate columns names
+    rename!(df, :decimalLatitude => :latitude)
+    rename!(df, :decimalLongitude => :longitude)
+    # Replace spaces by underscores in species names
+    df.species .= replace.(df.species, " " .=> "_")
+    # Remove entries with missing year
+    dropmissing!(df, :year)
+    return df
+end
+df = prepare_csvdata(warblers)
 
 ## Match observations & bioclim data
-# Test syntax
-temperature[df.longitude[1], df.latitude[1]]
 # Get temperature matching observations
-temp_warblers = zeros(length(df.latitude))
-for i in 1:length(df.latitude)
-    temp_warblers[i] = temperature[df.longitude[i], df.latitude[i]]
+function match_clim_var(df::DataFrame, var::SimpleSDMPredictor{Float64,Float64})
+    matched_var = zeros(size(df)[1])
+    for i in 1:size(df)[1]
+        matched_var[i] = var[df.longitude[i], df.latitude[i]]
+    end
+    return matched_var
 end
-# Bind temperatures to observation dataframe
-df.temperature = temp_warblers
-# View matched data
-show(df, allcols=true)
+# Bind bioclim data to observation dataframe
+df.temperature = match_clim_var(df, temperature)
+df.precipitation = match_clim_var(df, precipitation)
+df
 
 ## Create occurence array with correct dimensions
-size(temperature.grid) # [1] is lat, [2] is long
-# Ratio array cells per lat/long degree
-grid_ratio = size(temperature.grid)[1]/(2*90)
-grid_ratio == size(temperature.grid)[2]/(2*180) # must be true
-# Create occurence array
-occ = zeros(size(temperature.grid))
-lats = zeros(Int64, length(df.species))
-longs = zeros(Int64, length(df.species))
-for i in 1:length(df.species)
-    lats[i] = conv_lat(df.latitude[i], grid_ratio)
-    longs[i] = conv_long(df.longitude[i], grid_ratio)
-    occ[lats[i], longs[i]] += 1
+# Determine grid size required to match coordinates
+grid_size = resolution/60 # because of resolution = arcmin degrees?
+# Create useful conversion functions
+function round_coord(coord::Float64)
+    round((coord-grid_size/2)/grid_size)*grid_size+grid_size/2
 end
-# Crop to selected region
-occ_obs = occ[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
+function lat_to_grid(lat::Float64)
+    Int64(floor((lat+90)/grid_size))
+end
+function long_to_grid(long::Float64)
+    Int64(floor((long+90)/grid_size))
+end
+# Create occurence array
+function obs_to_occ(df::DataFrame)
+    # Round coordinates
+    df.longitude .= round_coord.(df.longitude)
+    df.latitude .= round_coord.(df.latitude)
+    # Determine coordinates range
+    long_range = minimum(df.longitude):grid_size:maximum(df.longitude)
+    lat_range = minimum(df.latitude):grid_size:maximum(df.latitude)
+    # Create empty arrays
+    longs = zeros(Int64, length(df.species))
+    lats = zeros(Int64, length(df.species))
+    occ = zeros(Int64, length(lat_range), length(long_range))
+    # Convert observations to occurences
+    long_min = long_to_grid(minimum(df.longitude))
+    lat_min = lat_to_grid(minimum(df.latitude))
+    for i in 1:length(df.species)
+        # Convert coordinates to array position
+        longs[i] = long_to_grid(df.longitude[i])-long_min+1
+        lats[i] = lat_to_grid(df.latitude[i])-lat_min+1
+        # Compile occurences
+        occ[lats[i], longs[i]] += 1
+    end
+    return occ
+end
+occ = obs_to_occ(df)
 # Convert to SDMLayer
-test = SimpleSDMPredictor(occ_obs,
-                          minimum(df.longitude),
-                          maximum(df.longitude),
-                          minimum(df.latitude),
-                          maximum(df.latitude))
-heatmap(test.grid)
+test = SimpleSDMPredictor(occ,
+                          round_coord(minimum(df.longitude)),
+                          round_coord(maximum(df.longitude)),
+                          round_coord(minimum(df.latitude)),
+                          round_coord(maximum(df.latitude)))
 
 ## Map occurences
 # Map occurences
-map_occ = heatmap(occ_obs)
+map_occ = heatmap(occ)
+map_occ = heatmap(test.grid)
 # Map with coordinates
-map_occ_coord = heatmap(coord_range(df.longitude, grid_ratio),
-                        coord_range(df.latitude, grid_ratio),
-                        occ_obs)
 map_occ_coord = heatmap(longitudes(test), latitudes(test), test.grid)
 # Map temperature for same coordinates
 temperature[(minimum(df.longitude), maximum(df.longitude)),
@@ -109,8 +123,6 @@ map_species_count = heatmap(species_counts)
 map_occ_per_species = heatmap(occ_obs./species_counts)
 
 ## Ecological data matrix
-# Replace spaces by underscores
-df.species .= replace.(df.species, " " .=> "_")
 # List species in dataset
 species_list = unique(df.species)
 # Create coordinates & occurences parts of ecological data matrix
@@ -156,7 +168,7 @@ end
 species_maps = Dict(Symbol(species_list[i]) =>
                     heatmap(reshape(Array(sites_x_species[Symbol(species_list[i])]), 11, 18))
                     for i=1:length(species_list))
-species_maps[Symbol(species_list[1])]
+species_maps[Symbol(spewc_vars = temperature, precipitationcies_list[1])]
 # Produce all graphs
 for i in 1:length(species_list)
     display(species_maps[Symbol(species_list[i])])
