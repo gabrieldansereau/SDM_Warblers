@@ -1,7 +1,6 @@
 using CSV
 using DataFrames
 using SimpleSDMLayers
-using Plots
 
 ## Get data
 # Warbler data for Montreal area
@@ -86,17 +85,6 @@ function obs_to_occ(df::DataFrame)
 end
 occ = obs_to_occ(df)
 
-## Map occurences
-# Map occurences
-map_occ = heatmap(occ.grid)
-# Map with coordinates
-map_occ_coord = heatmap(longitudes(occ), latitudes(occ), occ.grid)
-# Map temperature for same coordinates
-temperature_occ = temperature[(minimum(longitudes(occ)), maximum(longitudes(occ))),
-                              (minimum(latitudes(occ)), maximum(latitudes(occ)))]
-temperature_occ |> x -> heatmap(longitudes(x), latitudes(x), x.grid)
-
-
 ## Sites with >1 observation (binary)
 function obs_as_bin(obs)
     obs_copy = deepcopy(obs)
@@ -106,21 +94,18 @@ end
 occ_bin = obs_as_bin(occ)
 map_occ_bin = heatmap(occ_bin.grid)
 
-## Number of species
-# List species per site (with "NA", could not find another way)
-species_per_site = fill(String["NA"], size(occ.grid)[1], size(occ.grid)[2])
-for i in 1:length(df.species)
-    if (df.species[i] in species_per_site[lats[i], longs[i]]) == false
-        species_per_site[lats[i], longs[i]] = vec(vcat(species_per_site[lats[i], longs[i]], df.species[i]))
-    end
-end
-# Crop to observed sites
-species_per_site_obs = species_per_site[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
-# Count species per site
-species_counts = length.(species_per_site_obs) .- 1
-# Map species per site
-map_species_count = heatmap(species_counts)
-map_occ_per_species = heatmap(occ_obs./species_counts)
+# ## Number of species
+# # List species per site (with "NA", could not find another way)
+# species_per_site = fill(String["NA"], size(occ.grid)[1], size(occ.grid)[2])
+# for i in 1:length(df.species)
+#     if (df.species[i] in species_per_site[lats[i], longs[i]]) == false
+#         species_per_site[lats[i], longs[i]] = vec(vcat(species_per_site[lats[i], longs[i]], df.species[i]))
+#     end
+# end
+# # Crop to observed sites
+# species_per_site_obs = species_per_site[(minimum(lats):maximum(lats)),(minimum(longs):maximum(longs))]
+# # Count species per site
+# species_counts = length.(species_per_site_obs) .- 1
 
 ## Ecological data matrix
 function sitesXspecies(df::DataFrame)
@@ -141,8 +126,8 @@ function sitesXspecies(df::DataFrame)
                                              inner=length(unique(lats)))
     # Fill in sites x species occurence dataframe
     for i in 1:length(df.species)
-        rows_lats = findall(x -> x == lats[1], sites_x_species_coord.latitude)
-        rows_longs = findall(x -> x == longs[1], sites_x_species_coord.longitude)
+        rows_lats = findall(x -> x == lats[i], sites_x_species_coord.latitude)
+        rows_longs = findall(x -> x == longs[i], sites_x_species_coord.longitude)
         row = intersect(rows_lats, rows_longs)[1]
         col = findfirst(x -> x == df.species[i], species_list)
         sites_x_species_occ[row, col] += 1
@@ -154,74 +139,4 @@ function sitesXspecies(df::DataFrame)
     sites_x_species = hcat(sites_x_species_coord, sites_x_species_occ)
     return sites_x_species
 end
-sitesXspecies(df)
-# Plot single species occurences
-map_single_sp1 = heatmap(reshape(Array(sites_x_species.Setophaga_caerulescens), 11, 18))
-
-## Heatmaps for all species (single species per heatmap)
-# Option 1: using array of plots, produce plot combining multiple single-species plots
-plot_array = Any[]
-# 9 species at time, result is ok
-for i in 1:9
-    push!(plot_array,
-          heatmap(reshape(Array(sites_x_species[Symbol(species_list[i])]), 11, 18),
-                  title=species_list[i]))
-end
-map_single_sp_9x = plot(plot_array..., size=(1800,900), aspect_ratio=:equal)
-
-# Option 2: using @eval, produce each species heatmap as 1 element in workspace
-for i in 1:length(species_list)
-    global j = i
-    @eval $(Symbol(string("map_single_sp_", species_list[j]))) = heatmap(reshape(Array(sites_x_species[Symbol(species_list[j])]), 11, 18))
-end
-
-# Option 3: using Dict, produce each heatmap as element in dictionnary
-species_maps = Dict(Symbol(species_list[i]) =>
-                    heatmap(reshape(Array(sites_x_species[Symbol(species_list[i])]), 11, 18))
-                    for i=1:length(species_list))
-species_maps[Symbol(spewc_vars = temperature, precipitationcies_list[1])]
-# Produce all graphs
-for i in 1:length(species_list)
-    display(species_maps[Symbol(species_list[i])])
-end
-# useless @eval plot($(Symbol.(string.("map_single_sp_", species_list))))
-
-mtl_layer = geotiff.("./assets/mtl.tif")
-
-## Export figures
-savefig(map_occ, "fig/map-occurences")
-savefig(map_occ_coord, "fig/map-occurences-with-coordinates")
-savefig(map_temp, "fig/map-temperature")
-savefig(map_occ_bin, "fig/map-occurences-binary-qc")
-savefig(map_species_count, "fig/map-species-count")
-savefig(map_occ_per_species, "fig/map-occurences-per-species")
-savefig(map_single_sp1, "fig/map-single-species-example")
-savefig(map_single_sp_9x, "fig/map-single-species-9x.png")
-
-
-#######################################################
-#### Exploration
-
-## Understand data structure
-# Find resolution & digits concordance
-res = zeros(10,10)
-for i in 1:10, j in 1:10
-    res[i,j] = i |> x ->
-        temperature[round(df.longitude[j], digits=x),
-                    round(df.latitude[j], digits=x)]
-end
-res # 3 digit seem necessary
-
-# Explore temperature array
-temperature.grid
-temperature.grid[1,1]
-temperature[-180.0, -90.0]
-# first element has coordinates -180.0, -90.0
-
-# Test conversion from coordinate to grid position
-conv_lat(df.latitude[1], grid_ratio)
-conv_lat(-90, grid_ratio)
-conv_lat(-89, grid_ratio)
-conv_lat(89.1, grid_ratio)
-conv_lat(90, grid_ratio)
-conv_long(df.longitude[1], grid_ratio)
+sites_x_species = sitesXspecies(df)
