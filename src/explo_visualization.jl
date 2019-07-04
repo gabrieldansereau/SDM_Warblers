@@ -57,58 +57,58 @@ end
 # Create occurence array
 function obs_to_occ(df::DataFrame)
     # Round coordinates
-    df.longitude .= round_coord.(df.longitude)
-    df.latitude .= round_coord.(df.latitude)
+    longs = round_coord.(df.longitude)
+    lats = round_coord.(df.latitude)
     # Determine coordinates range
-    long_range = minimum(df.longitude):grid_size:maximum(df.longitude)
-    lat_range = minimum(df.latitude):grid_size:maximum(df.latitude)
+    long_range = minimum(longs):grid_size:maximum(longs)
+    lat_range = minimum(lats):grid_size:maximum(lats)
     # Create empty arrays
-    longs = zeros(Int64, length(df.species))
-    lats = zeros(Int64, length(df.species))
+    longs_grid = zeros(Int64, length(df.species))
+    lats_grid = zeros(Int64, length(df.species))
     occ = zeros(Int64, length(lat_range), length(long_range))
     # Convert observations to occurences
-    long_min = long_to_grid(minimum(df.longitude))
-    lat_min = lat_to_grid(minimum(df.latitude))
+    long_min = long_to_grid(minimum(longs))
+    lat_min = lat_to_grid(minimum(lats))
     for i in 1:length(df.species)
         # Convert coordinates to array position
-        longs[i] = long_to_grid(df.longitude[i])-long_min+1
-        lats[i] = lat_to_grid(df.latitude[i])-lat_min+1
+        longs_grid[i] = long_to_grid(longs[i])-long_min+1
+        lats_grid[i] = lat_to_grid(lats[i])-lat_min+1
         # Compile occurences
-        occ[lats[i], longs[i]] += 1
+        occ[lats_grid[i], longs_grid[i]] += 1
     end
-    return occ
+    # Convert to SDMLayer
+    occ_SDMLayer = SimpleSDMPredictor(occ,
+                              minimum(longs),
+                              maximum(longs),
+                              minimum(lats),
+                              maximum(lats))
+    return occ_SDMLayer
 end
 occ = obs_to_occ(df)
-# Convert to SDMLayer
-test = SimpleSDMPredictor(occ,
-                          round_coord(minimum(df.longitude)),
-                          round_coord(maximum(df.longitude)),
-                          round_coord(minimum(df.latitude)),
-                          round_coord(maximum(df.latitude)))
 
 ## Map occurences
 # Map occurences
-map_occ = heatmap(occ)
-map_occ = heatmap(test.grid)
+map_occ = heatmap(occ.grid)
 # Map with coordinates
-map_occ_coord = heatmap(longitudes(test), latitudes(test), test.grid)
+map_occ_coord = heatmap(longitudes(occ), latitudes(occ), occ.grid)
 # Map temperature for same coordinates
-temperature[(minimum(df.longitude), maximum(df.longitude)),
-                        (minimum(df.latitude), maximum(df.latitude))] |> x ->
-                        heatmap(longitudes(x), latitudes(x), x.grid)
-temperature[(minimum(longitudes(test)), maximum(longitudes(test))),
-                        (minimum(latitudes(test)), maximum(latitudes(test)))] |> x ->
-                        heatmap(longitudes(x), latitudes(x), x.grid)
+temperature_occ = temperature[(minimum(longitudes(occ)), maximum(longitudes(occ))),
+                              (minimum(latitudes(occ)), maximum(latitudes(occ)))]
+temperature_occ |> x -> heatmap(longitudes(x), latitudes(x), x.grid)
+
 
 ## Sites with >1 observation (binary)
-occ_obs_bin = occ_obs
-occ_obs_bin[occ_obs_bin .> 0] .= 1.0
-occ_obs_bin
-map_occ_bin = heatmap(occ_obs_bin)
+function obs_as_bin(obs)
+    obs_copy = deepcopy(obs)
+    obs_copy.grid[obs_copy.grid .> 0] .= 1.0
+    return obs_copy
+end
+occ_bin = obs_as_bin(occ)
+map_occ_bin = heatmap(occ_bin.grid)
 
 ## Number of species
 # List species per site (with "NA", could not find another way)
-species_per_site = fill(String["NA"], size(temperature.grid)[1], size(temperature.grid)[2])
+species_per_site = fill(String["NA"], size(occ.grid)[1], size(occ.grid)[2])
 for i in 1:length(df.species)
     if (df.species[i] in species_per_site[lats[i], longs[i]]) == false
         species_per_site[lats[i], longs[i]] = vec(vcat(species_per_site[lats[i], longs[i]], df.species[i]))
@@ -123,27 +123,38 @@ map_species_count = heatmap(species_counts)
 map_occ_per_species = heatmap(occ_obs./species_counts)
 
 ## Ecological data matrix
-# List species in dataset
-species_list = unique(df.species)
-# Create coordinates & occurences parts of ecological data matrix
-sites_x_species_coord = DataFrame()
-sites_x_species_occ = zeros(Int64, (length(occ_obs), length(species_list)))
-# Add latitude & longitude to dataset
-sites_x_species_coord.latitude = repeat(coord_range(df.latitude, grid_ratio), outer=size(occ_obs)[2])
-sites_x_species_coord.longitude = repeat(coord_range(df.longitude, grid_ratio), inner=size(occ_obs)[1])
-# Fill in sites x species occurence dataframe
-for i in 1:length(df.species)
-    possib_x = findall(x -> x == coord_round(df.latitude[i], grid_ratio), sites_x_species_coord.latitude)
-    possib_y = findall(y -> y == coord_round(df.longitude[i], grid_ratio), sites_x_species_coord.longitude)
-    row = possib_y[findfirst(in(possib_x), possib_y)]
-    col = findfirst(x -> x == df.species[i], species_list)
-    sites_x_species_occ[row, col] += 1
+function sitesXspecies(df::DataFrame)
+    # List species in dataset
+    species_list = unique(df.species)
+    # Keep lats & longs separated
+    lats = round_coord.(df.latitude)
+    longs = round_coord.(df.longitude)
+    # Create coordinates & occurences parts of ecological data matrix
+    sites_x_species_coord = DataFrame()
+    sites_x_species_occ = zeros(Int64,
+                                length(unique(lats))*length(unique(longs)),
+                                length(species_list))
+    # Add latitude & longitude to dataset
+    sites_x_species_coord.latitude = repeat(minimum(lats):grid_size:maximum(lats),
+                                            outer=length(unique(longs)))
+    sites_x_species_coord.longitude = repeat(minimum(longs):grid_size:maximum(longs),
+                                             inner=length(unique(lats)))
+    # Fill in sites x species occurence dataframe
+    for i in 1:length(df.species)
+        rows_lats = findall(x -> x == lats[1], sites_x_species_coord.latitude)
+        rows_longs = findall(x -> x == longs[1], sites_x_species_coord.longitude)
+        row = intersect(rows_lats, rows_longs)[1]
+        col = findfirst(x -> x == df.species[i], species_list)
+        sites_x_species_occ[row, col] += 1
+    end
+    sites_x_species_occ = DataFrame(sites_x_species_occ)
+    # Rename columns by species names
+    names!(sites_x_species_occ, Symbol.(species_list))
+    # Create full ecological data matrix
+    sites_x_species = hcat(sites_x_species_coord, sites_x_species_occ)
+    return sites_x_species
 end
-sites_x_species_occ = DataFrame(sites_x_species_occ)
-# Rename columns by species names
-names!(sites_x_species_occ, Symbol.(species_list))
-# Create full ecological data matrix
-sites_x_species = hcat(sites_x_species_coord, sites_x_species_occ)
+sitesXspecies(df)
 # Plot single species occurences
 map_single_sp1 = heatmap(reshape(Array(sites_x_species.Setophaga_caerulescens), 11, 18))
 
