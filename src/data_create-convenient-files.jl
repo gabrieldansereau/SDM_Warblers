@@ -40,3 +40,11 @@ mtl_env = wc_vars_df(wc_vars_occ, names)
 CSV.write("../data/mtl_env.csv", mtl_env, delim="\t")
 # Test CSV file
 test = CSV.read("../data/mtl_env.csv", header=true, delim="\t")
+
+## Mtl sites x species dataframe
+# Create sites x species matrix
+sites_x_species = sitesXspecies(df)
+# Write to CSV
+CSV.write("../data/mtl_spe.csv", sites_x_species, delim="\t")
+# Test CSV
+test = CSV.read("../data/mtl_spe.csv")
