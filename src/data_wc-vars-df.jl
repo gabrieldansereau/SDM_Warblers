@@ -6,6 +6,10 @@ var_names = (:temperature, :precipitation)
 wc_vars = [worldclim(i, resolution="2.5") for i in (1,12)]
 
 function wc_vars_df(vars, names)
+    # Fix vars type if only 1 variable
+    if typeof(vars) == SimpleSDMPredictor{Float64,Float64}
+        vars = SimpleSDMPredictor{Float64,Float64}[vars]
+    end
     # Extract array dimensions
     grid_size_lat = size(vars[1], 1)
     grid_size_long = size(vars[1], 2)
