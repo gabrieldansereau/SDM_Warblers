@@ -92,7 +92,6 @@ function obs_as_bin(obs)
     return obs_copy
 end
 occ_bin = obs_as_bin(occ)
-map_occ_bin = heatmap(occ_bin.grid)
 
 # ## Number of species
 # # List species per site (with "NA", could not find another way)
