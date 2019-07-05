@@ -1,28 +1,33 @@
 ### Create Convenient CSV Files
 
 using CSV
+using DataFrames
+using SimpleSDMLayers
 
 ## Quebec 2018 observations (smaller csv file)
-
 # Select 2018 observations
-warblers = CSV.read("../data/warblers_qc.csv", header=true, delim="\t")
-warblers_2018 = warblers[warblers.year .=== 2018, :]
-# Write to csv
+warblers_qc = CSV.read("../data/warblers_qc.csv", header=true, delim="\t")
+warblers_2018 = warblers_qc[warblers_qc.year .=== 2018, :]
+# Write to CSV
 CSV.write("../data/warblers_qc_2018.csv", warblers_2018, delim="\t")
-
-# Test csv file
+# Test CSV file
 test = CSV.read("../data/warblers_qc_2018.csv", header=true, delim="\t")
 first(test, 6)
 names(test)
 
 ## Mtl environment dataframe
-
-# Load functions (takes ~ 90 sec)
-include(explo_visualization.jl)
-
+# Load functions
+include("explo_functions.jl")
+# Load warbler data
+warblers_mtl = CSV.read("../data/warblers_mtl.csv", header=true, delim="\t")
 # Select climate variables
 var_names = (:temperature, :precipitation)
-wc_vars = [worldclim(i, resolution="2.5") for i in (1,12)]
+resolution = 2.5
+wc_vars = [worldclim(i, resolution="$(resolution)") for i in (1,12)]
+# Prepare data
+df = prepare_csvdata(warblers_mtl)
+grid_size = resolution/60
+occ = obs_to_occ(df)
 # Crop variables to selected region
 wc_vars_occ = SimpleSDMPredictor{Float64,Float64}[]
 for i in 1:length(wc_vars)
@@ -31,7 +36,7 @@ for i in 1:length(wc_vars)
 end
 # Convert to dataframe
 mtl_env = wc_vars_df(wc_vars_occ, names)
-# Write to csv
+# Write to CSV
 CSV.write("../data/mtl_env.csv", mtl_env, delim="\t")
-# Test csv file
+# Test CSV file
 test = CSV.read("../data/mtl_env.csv", header=true, delim="\t")
