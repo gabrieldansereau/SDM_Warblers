@@ -17,7 +17,7 @@ occ_count(datasetKey='e707e6da-e143-445d-b41d-529c4a777e8b', basisOfRecord='OBSE
 ## Search for taxon names
 taxrank()
 out <- name_lookup(query='parulidae')
-names(out)0
+names(out)
 out$meta
 head(out$data)
 out$facets
