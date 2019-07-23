@@ -48,3 +48,18 @@ sites_x_species = sitesXspecies(df)
 CSV.write("../data/mtl_spe.csv", sites_x_species, delim="\t")
 # Test CSV
 test = CSV.read("../data/mtl_spe.csv")
+
+####
+## Create dataframes from whole warblers_cut file
+warblers_cut = CSV.read("../data/warblers_cut.csv", header=true, delim="\t")
+# Check number of observations by country
+occ_by_country = by(warblers_cut, :countryCode , N = :countryCode => length)
+show(sort(occ_by_country, :N, rev=true), allrows=true)
+# Caribean & Central America countries?
+
+# Observations from Canada only
+warblers_cut = dropmissing(warblers_cut, :countryCode)
+warblers_can = warblers_cut[warblers_cut.countryCode .== "CA",:]
+CSV.write("../data/warblers_can.csv", warblers_can, delim="\t")
+# Test
+warblers_can = CSV.read("../data/warblers_can.csv", delim="\t")
