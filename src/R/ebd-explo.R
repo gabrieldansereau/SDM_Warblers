@@ -87,17 +87,24 @@ fewer_parulidae_species <- parulidae_species[!(parulidae_species %in% to_remove)
 fewer_parulidae_species
 
 # Get ebd file
-ebd <- auk_ebd("ebd_relJun-2019.txt")
+ebd <- auk_ebd("ebd_relJun-2019.txt",
+               file_sampling = "ebd_sampling_relJun-2019.txt")
+ebd_sampling <- auk_samp
 # Apply filters
 ebd_filters <- ebd %>% 
   auk_species(fewer_parulidae_species) %>% 
   auk_country(c("CA", "US", "MX")) %>% 
   auk_complete()
 ebd_filters
+ebd_sampling_filters <- ebd_sampling %>% 
+  auk_country(c("CA", "US", "MX")) %>% 
+  auk_complete()
+ebd_sampling_filters
 # Export filtered data !!! SEVERAL HOURS !!!!
 f_ebd <- "../data/ebd/ebd_warblers.csv"
-auk_filter(ebd_filters, file = f_ebd)
-
+f_sampling <- "../data/ebd/ebd_warblers_sampling.csv"
+auk_filter(ebd_filters, file = f_ebd, file_sampling = f_sampling)
+auk_filter(ebd_sampling_filters, file = f_sampling)
 # File is too big, need to cut in terminal
 
 # Select variables to keep
@@ -114,6 +121,8 @@ inds
 ## Test exported file ####
 warblers <- read.csv("../data/ebd/ebd_warblers_cut.csv", header = T, sep = "\t")
 head(warblers)
+warblers_sampling <- read.csv("../data/ebd/ebd_warblers_sampling.csv", header = T, sep = "\t")
+head(warblers_sampling)
 
 # Check summary
 warblers_summary <- summary(warblers) # takes some time
@@ -175,3 +184,7 @@ warblers %>%
   count(DAY) %>% 
   print.data.frame()
 
+## Zero-filling ####
+f_ebd <- "../data/ebd/ebd_warblers.csv"
+f_sampling <- "../data/ebd/ebd_warblers_sampling.csv"
+ebd_zf <- auk_zerofill(f_ebd, f_sampling, collapse = TRUE)
