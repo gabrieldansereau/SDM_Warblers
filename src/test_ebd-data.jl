@@ -1,13 +1,29 @@
 using CSV
 using DataFrames
 
-ebd = CSV.read("/home/gdansereau/Downloads/ebd_sample/ebd_sample.txt", delim="\t")
+include("../../BioClim/src/required.jl")
 
-newnames = string.(names(ebd))
-newnames = Symbol.(replace.(newnames, " " .=> "_"))
+ebd = CSV.read("../data/ebd/ebd_warblers_cut.csv", delim="\t")
+gbif = CSV.read("../data/warblers_cut.csv", delim="\t")
+
+#=
+newnames = names(ebd) .|>
+    string .|>
+    titlecase .|>
+    lowercasefirst .|>
+    x -> replace(x, " " => "") .|>
+    Symbol
 names!(ebd, newnames)
+=#
+df = prepare_ebd_data(ebd)
 
 show(ebd, allcols=true)
 
-by(ebd, :PROTOCOL_TYPE, :PROTOCOL_TYPE => length)
-by(ebd, :ALL_SPECIES_REPORTED, :ALL_SPECIES_REPORTED => length)
+by(ebd, :protocolType, :protocolType => length)
+by(ebd, :allSpeciesReported, n = :allSpeciesReported => length)
+@time by(ebd, :countryCode, nrow) # slower but easier to write
+@time by(ebd, :countryCode, :countryCode => length) # faster
+@time by(ebd, :scientificName, nrow)
+@time by(ebd, :scientificName, :scientificName => length)
+first(sort(by(ebd, :scientificName, nrow), :x1, rev=true), 10)
+first(sort(by(gbif, :species, nrow), :x1, rev=true), 10)
