@@ -10,13 +10,13 @@ library(tidyverse)
 select <- dplyr::select
 
 # Set ebd path
-# auk::auk_set_ebd_path("~/github/data/ebd/")
+# auk::auk_set_ebd_path("~/github/data/ebd/raw/")
 # Restart session
 
-## Explore EBD Sample ####
+#### 1. Explore EBD Sample ####
 
 # Load data
-ebd_sample <- read.csv("../data/ebd/ebd_sample.txt", header=T, sep="\t")
+ebd_sample <- read.csv("../data/ebd/raw/ebd_sample.txt", header=T, sep="\t")
 
 # # Fix names format
 # names(ebd_sample) = gsub("\\.", "_", names(ebd_sample))
@@ -38,19 +38,19 @@ View(parulidae_taxonomy)
 
 # Extract Parulidae species names (species only, no hybrid-issf-spuh-...)
 parulidae_species <- parulidae_taxonomy %>%
-  filter(category == "species") %>% 
+  filter(category == "species") %>%
   pull(scientific_name)
 parulidae_species
 
-## Test Data Extraction with EBD Sample ####
+#### 2. Test Data Extraction with EBD Sample ####
 
 # Get ebd file
 ebd <- auk_ebd("ebd_sample.txt")
 
 # Apply filters
-ebd_filters <- ebd %>% 
-  auk_species(parulidae_species[1:97]) %>% 
-  auk_country(c("CA", "US", "MX")) %>% 
+ebd_filters <- ebd %>%
+  auk_species(parulidae_species[1:97]) %>%
+  auk_country(c("CA", "US", "MX")) %>%
   auk_complete()
 ebd_filters
 # Not working for more than 97 species at the time...
@@ -58,30 +58,30 @@ ebd_filters
 # [1:97], [98:110], [14:110] all work
 
 # Export filtered data
-f_ebd <- "../data/ebd/ebd_test.csv"
+f_ebd <- "../data/ebd/processed/ebd_sample_test.csv"
 auk_filter(ebd_filters, file = f_ebd, overwrite = T)
 
 # Test exported file
-test <- read.csv("../data/ebd/ebd_test.csv", header = T, sep = "\t")
+test <- read.csv("../data/ebd/processed/ebd_sample_test.csv", header = T, sep = "\t")
 head(test)
 table(test$SCIENTIFIC.NAME)
 table(test$PROTOCOL.TYPE)
 
-## Extract data from complete database ####
+#### 3. Extract data from complete database ####
 
 # Check worldwide distribution for a few species (manually from eBird website)
 amN <- c("Myioborus miniatus", "Myioborus pictus",
          "Cardellina rubrifrons")
-amS <- c("Myioborus albifrons", "Myioborus melanocephalus", 
+amS <- c("Myioborus albifrons", "Myioborus melanocephalus",
          "Myioborus ornatus", "Myioborus flavivertex",
          "Myioborus pariae", "Myioborus castaneocapilla",
          "Myioborus brunniceps", "Myiothlypis rivularis",
          "Myiothlypis nigrocristata", "Myiothlypis leucoblephara",
          "Myiothlypis luteoviridis")
-amC <- c("Myioborus torquatus", "Cardellina versicolor", 
+amC <- c("Myioborus torquatus", "Cardellina versicolor",
          "Cardellina rubra")
 nul <- c("Myioborus albifacies", "Myioborus cardonai")
-# Remove a few species not present in North America
+# Remove a few species not present in North America (to have 97 at most and run command onloy once)
 to_remove <- c(amS, nul)
 fewer_parulidae_species <- parulidae_species[!(parulidae_species %in% to_remove)]
 fewer_parulidae_species
@@ -89,39 +89,59 @@ fewer_parulidae_species
 # Get ebd file
 ebd <- auk_ebd("ebd_relJun-2019.txt",
                file_sampling = "ebd_sampling_relJun-2019.txt")
-ebd_sampling <- auk_samp
+ebd_sampling <- auk_sampling("ebd_sampling_relJun-2019.txt")
 # Apply filters
-ebd_filters <- ebd %>% 
-  auk_species(fewer_parulidae_species) %>% 
-  auk_country(c("CA", "US", "MX")) %>% 
+ebd_filters <- ebd %>%
+  auk_species(fewer_parulidae_species) %>%
+  auk_country(c("CA", "US", "MX")) %>%
   auk_complete()
 ebd_filters
-ebd_sampling_filters <- ebd_sampling %>% 
-  auk_country(c("CA", "US", "MX")) %>% 
+ebd_sampling_filters <- ebd_sampling %>%
+  auk_country(c("CA", "US", "MX")) %>%
   auk_complete()
 ebd_sampling_filters
 # Export filtered data !!! SEVERAL HOURS !!!!
-f_ebd <- "../data/ebd/ebd_warblers.csv"
-f_sampling <- "../data/ebd/ebd_warblers_sampling.csv"
+f_ebd <- "../data/ebd/processed/ebd_warblers.csv"
+f_sampling <- "../data/ebd/processed/ebd_warblers_sampling.csv"
 auk_filter(ebd_filters, file = f_ebd, file_sampling = f_sampling)
 auk_filter(ebd_sampling_filters, file = f_sampling)
-# File is too big, need to cut in terminal
+# File is too big, needs to cut in terminal
+
+#### 4. Cut file using bash command ####
 
 # Select variables to keep
-vars <- c("CATEGORY", "SCIENTIFIC.NAME", "SUBSPECIES.SCIENTIFIC.NAME", "OBSERVATION.COUNT", "COUNTRY.CODE", 
-          "LATITUDE", "LONGITUDE", "OBSERVATION.DATE", "PROTOCOL.TYPE", "DURATION.MINUTES",
-          "EFFORT.DISTANCE.KM", "NUMBER.OBSERVERS", "ALL.SPECIES.REPORTED", "APPROVED") 
+vars <- c("GLOBAL.UNIQUE.IDENTIFIER", "CATEGORY", "SCIENTIFIC.NAME", "SUBSPECIES.SCIENTIFIC.NAME", "OBSERVATION.COUNT", "COUNTRY.CODE",
+          "LATITUDE", "LONGITUDE", "OBSERVATION.DATE", "OBSERVER.ID", "SAMPLING.EVENT.IDENTIFIER", "PROTOCOL.TYPE", "DURATION.MINUTES",
+          "EFFORT.DISTANCE.KM", "NUMBER.OBSERVERS", "ALL.SPECIES.REPORTED", "GROUP.IDENTIFIER", "APPROVED")
 # Get column indices
 inds <- which(names(ebd_sample) %in% vars)
 inds
 
-# Bash command
-# cut -f4,6,8,9,14,26,27,28,32,35,36,38,39,42 ebd_warblers.csv > ebd_warblers_cut.csv
+## Test command with smaller dataset
+# Desired command
+# cut -f4,6,8,9,14,26,27,28,32,35,36,38,39,42 processed/ebd_warblers.csv > ebd_warblers_cut.csv
+# Create command
+bash_command_test <- paste("cut -f", paste(inds, collapse=","), " ../data/ebd/processed/ebd_sample_test.csv > ../data/ebd/processed/rbashtest.csv", sep="")
+bash_command_test
+# Run command
+system(bash_command_test)
+# Check result
+bash_test <- read.csv("../data/ebd/processed/rbashtest.csv", header = T, sep="\t")
+head(bash_test)
 
-## Test exported file ####
-warblers <- read.csv("../data/ebd/ebd_warblers_cut.csv", header = T, sep = "\t")
+## Run for full dataset
+# Create command
+bash_command <- paste("cut -f", paste(inds, collapse=","), " ../data/ebd/processed/ebd_warblers.csv > ../data/ebd/processed/ebd_warblers_cut.csv", sep="")
+bash_command
+# Run command and calculate runtime
+ptm <- proc.time()
+system(bash_command)
+proc.time() - ptm
+
+#### 5. Test exported file ####
+warblers <- read.csv("../data/ebd/processed/ebd_warblers_cut.csv", header = T, sep="\t")
 head(warblers)
-warblers_sampling <- read.csv("../data/ebd/ebd_warblers_sampling.csv", header = T, sep = "\t")
+warblers_sampling <- read.csv("../data/ebd/processed/ebd_warblers_sampling.csv", header = T, sep = "\t")
 head(warblers_sampling)
 
 # Check summary
@@ -129,17 +149,17 @@ warblers_summary <- summary(warblers) # takes some time
 warblers_summary
 
 # Check categories
-warblers %>% 
+warblers %>%
   filter(CATEGORY == "form") %>%
-  select(CATEGORY, SCIENTIFIC.NAME, SUBSPECIES.SCIENTIFIC.NAME) %>% 
+  select(CATEGORY, SCIENTIFIC.NAME, SUBSPECIES.SCIENTIFIC.NAME) %>%
   head(50)
-warblers %>% 
+warblers %>%
   filter(CATEGORY == "intergrade") %>%
-  select(CATEGORY, SCIENTIFIC.NAME, SUBSPECIES.SCIENTIFIC.NAME) %>% 
+  select(CATEGORY, SCIENTIFIC.NAME, SUBSPECIES.SCIENTIFIC.NAME) %>%
   head(50)
-warblers %>% 
+warblers %>%
   filter(CATEGORY == "issf") %>%
-  select(CATEGORY, SCIENTIFIC.NAME, SUBSPECIES.SCIENTIFIC.NAME) %>% 
+  select(CATEGORY, SCIENTIFIC.NAME, SUBSPECIES.SCIENTIFIC.NAME) %>%
   head(50)
 
 # Check species
@@ -148,43 +168,43 @@ unique(warblers$SCIENTIFIC.NAME) # 63
 unique(warblers$SUBSPECIES.SCIENTIFIC.NAME) # 41
 # Check counts
 sort(unique(warblers$OBSERVATION.COUNT)) # X is weird
-warblers %>% 
+warblers %>%
   filter(OBSERVATION.COUNT != "X") %>%
-  pull(OBSERVATION.COUNT) %>% 
-  as.numeric %>% 
+  pull(OBSERVATION.COUNT) %>%
+  as.numeric %>%
   hist
 
 # Check longitude
 filter(warblers, LONGITUDE > 0) # possibly and error
 
 warblers_strict <- warblers %>%
-  filter(CATEGORY == "species", 
+  filter(CATEGORY == "species",
          OBSERVATION.COUNT != "X",
          LONGITUDE < 0,
          PROTOCOL.TYPE == "Traveling",
-         APPROVED == 1) %>% 
+         APPROVED == 1) %>%
   droplevels
 summary(warblers_strict)
 
 # Transform dates
 tmp <- head(warblers, 10)
-tmp %>% 
+tmp %>%
   mutate_at(vars(OBSERVATION.DATE), list(YEAR = year, MONTH = month, DAY = day))
-warblers <- warblers %>% 
+warblers <- warblers %>%
   mutate_at(vars(OBSERVATION.DATE), list(YEAR = year, MONTH = month, DAY = day))
 
 # Check dates
-warblers %>% 
-  count(YEAR) %>% 
+warblers %>%
+  count(YEAR) %>%
   print.data.frame()
-warblers %>% 
-  count(MONTH) %>% 
+warblers %>%
+  count(MONTH) %>%
   print.data.frame()
-warblers %>% 
-  count(DAY) %>% 
+warblers %>%
+  count(DAY) %>%
   print.data.frame()
 
-## Zero-filling ####
-f_ebd <- "../data/ebd/ebd_warblers.csv"
-f_sampling <- "../data/ebd/ebd_warblers_sampling.csv"
+#### 6. Zero-filling ####
+f_ebd <- "../data/ebd/processed/ebd_warblers.csv"
+f_sampling <- "../data/ebd/processed/ebd_warblers_sampling.csv"
 ebd_zf <- auk_zerofill(f_ebd, f_sampling, collapse = TRUE)
